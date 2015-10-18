@@ -1,0 +1,8 @@
+**/*.suo
+**/bin/x64
+**/bin/x86
+**/obj/x64
+**/obj/x86
+**/*.suo
+**/bin/
+**/obj/
