@@ -21,7 +21,8 @@ namespace FolderSizeTracer
 {
     public partial class FST : Form
     {
-        public static FST form = null;
+        public static FST form = null;        
+        
         static readonly string[] SizeSuffixes = { "bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" };
         public FST()
         {
@@ -51,6 +52,12 @@ namespace FolderSizeTracer
                     {
                         rButton.Checked = true;
                     }
+                    rButton.CheckedChanged += delegate {
+                        if (rButton.Checked)
+                        {
+                            LoadFirstFolders();
+                        }
+                    };
                     panUnits.Controls.Add(rButton);
                     freeSpace = drive.TotalFreeSpace / 1073741824; ;
                     totalSpace = drive.TotalSize / 1073741824;
@@ -82,6 +89,54 @@ namespace FolderSizeTracer
                     tt += 20;
                 }
             }
+
+            LoadFirstFolders();
+        }
+
+      
+
+        private void LoadFirstFolders()
+        { 
+            foreach (CheckBox oCheck in panelWindows.Controls.Find("Folders", true))
+            {
+                panelWindows.Controls.Remove(oCheck);
+            }
+            string sUnitAnalize="";
+            int tt=0;
+            //busca la unidad seleccionada
+            foreach (RadioButton oBDrive in panUnits.Controls.Find("Drives", true))
+            {
+                if (oBDrive.Checked)
+                {
+                    sUnitAnalize = oBDrive.Text;
+                    break;
+                }
+            }
+            if (sUnitAnalize == "")
+            {
+                MessageBox.Show("No se ha localizado ningún origen válido para buscar carpetas");
+                Form.ActiveForm.Refresh();
+                return;
+            }
+            DirectoryInfo dMainDirectory = new DirectoryInfo(sUnitAnalize);                   
+            //busca las las carpetas de primer nivel de la unidad
+            foreach (DirectoryInfo dSubFolder in dMainDirectory.GetDirectories())
+            {
+                //Inserta un checkbox en el listado de carpetas 
+                CheckBox rCheck = new CheckBox();
+                rCheck.Name = "Folders";
+                rCheck.Text = dSubFolder.Name;
+                rCheck.Location = new Point(20, tt);
+                rCheck.Width = 300;
+                if ((dSubFolder.Name != "Windows") && (dSubFolder.Name.IndexOf("Program")<0))
+                {
+                    rCheck.Checked = true;
+                }
+                panelWindows.Controls.Add(rCheck);
+                tt += 20;
+            }
+
+            
         }
         /// <summary>
         /// Acción que lanza el Análisis de espacio de la unidad seleccionada
@@ -99,9 +154,9 @@ namespace FolderSizeTracer
                  }
              }            
              if (sUnitAnalize != "")
-             {
-                 DirectoryInfo dMainDirectory = new DirectoryInfo(@"C:\Users");
-                 TraceFolder(dMainDirectory);               
+             {                
+                 DirectoryInfo dMainDirectory = new DirectoryInfo(sUnitAnalize);
+                 TraceFolder(dMainDirectory, true);               
              }
              else
              {
@@ -118,8 +173,25 @@ namespace FolderSizeTracer
         /// llama al procedimiento que introduce un registro con esta información en la lista ordenada de mayor a menor       
         /// </summary>
         /// <param name="dFolder">Directorio a analizar</param>
-        public static void TraceFolder(DirectoryInfo dFolder) {
-            double dFilesSize = 0;         
+        public static void TraceFolder(DirectoryInfo dFolder, bool bFirstLevel) {
+            double dFilesSize = 0;
+            string sSelectedFolders = "|";
+
+            if (bFirstLevel){
+
+                foreach (CheckBox oCheck in form.panelWindows.Controls.Find("Folders", true))
+                {
+                    if(oCheck.Checked){
+                        sSelectedFolders += oCheck.Text + "|";
+                    }
+                }
+                if (sSelectedFolders == "|")
+                {
+                    MessageBox.Show("Debe selecccionar al menos una carpeta de primer nivel para iniciar el análisis");
+                    return;
+                }
+            }
+
             try
             {
                 FileInfo[] oFiles = dFolder.GetFiles();
@@ -130,18 +202,20 @@ namespace FolderSizeTracer
                 //Inserta un registro en el listado
                 form.dgwFolders.Rows.Add(dFolder.FullName, SizeSuffix((Int64)dFilesSize), oFiles.Length, dFilesSize);
 
-                //procesa las subcarpetas
+                //procesa las subcarpetas 
                 foreach (DirectoryInfo dSubFolder in dFolder.GetDirectories())
                 {
-                    TraceFolder(dSubFolder);
+                    //si estamos en el primer nivel la carpeta debe estar entre las seleccioandas
+                    if ((!bFirstLevel) || (sSelectedFolders.IndexOf("|" + dSubFolder.Name + "|") >= 0))
+                    {
+                        TraceFolder(dSubFolder,false);
+                    }
                 }
             }
             catch (UnauthorizedAccessException ex) 
             {
                 //inserta la carpeta que no ha podido leer
             }
-
-
            
         
         }
@@ -163,8 +237,26 @@ namespace FolderSizeTracer
             System.Diagnostics.Process.Start("explorer.exe", form.dgwFolders.Rows[e.RowIndex].Cells[0].Value.ToString());
         }
 
- 
+        private void btnUncheckAll_Click(object sender, EventArgs e)
+        {
+            CheckFolders(false);
+        }         
 
+        private void btnCheckAll_Click(object sender, EventArgs e)
+        {
+            CheckFolders(true);
+        }
+
+        private void CheckFolders(bool p)
+        {
+            foreach (CheckBox oCheck in form.panelWindows.Controls.Find("Folders", true))
+            {
+                oCheck.Checked = p;
+            }
+
+        }
+
+       
         
  
     }
